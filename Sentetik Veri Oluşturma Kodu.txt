@@ -1,0 +1,49 @@
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+
+# Veri setini yükleyin
+data = pd.read_csv('diabetes.csv')
+
+# Özellikleri seçme
+X = data.drop(columns=['Outcome'])
+y = data['Outcome']
+
+# Veriyi ölçeklendirme
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Lojistik regresyon modeli oluştur ve eğit
+log_reg = LogisticRegression(max_iter=500, solver='lbfgs')
+log_reg.fit(X_scaled, y)
+
+# Çok değişkenli normal dağılım için parametreler
+mean = X.mean()  # Ortalama vektörü
+cov = X.cov()    # Kovaryans matrisi
+
+# 330 sentetik veri oluşturma
+np.random.seed(42)  # Tekrarlanabilirlik için
+synthetic_data = np.random.multivariate_normal(mean, cov, size=330)
+synthetic_data = pd.DataFrame(synthetic_data, columns=X.columns)
+
+# Sentetik veriyi ölçeklendirme
+synthetic_data_scaled = scaler.transform(synthetic_data)
+
+# Lojistik regresyon ile tahmin olasılıkları (P(y=1))
+synthetic_probabilities = log_reg.predict_proba(synthetic_data_scaled)[:, 1]
+
+# Bernoulli dağılımı ile etiket oluşturma
+synthetic_outcomes = np.random.binomial(1, synthetic_probabilities)
+
+# Sentetik veriyi birleştirme
+synthetic_data['Outcome'] = synthetic_outcomes
+
+# Sentetik veri setini bir dosyaya yazma
+synthetic_data.to_csv('synthetic_diabetes_data.csv', index=False)
+
+print("Sentetik veri oluşturuldu ve 'synthetic_diabetes_data.csv' dosyasına kaydedildi.")
+
+------------------------------------------------------------------------------------------------
+
+#Oluşturulan veri setindeki eksi değerler farkedilince o değerler 0 olarak değiştirildi.

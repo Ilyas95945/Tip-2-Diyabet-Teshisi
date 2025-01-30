@@ -1,0 +1,99 @@
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
+from lingam import DirectLiNGAM
+from graphviz import Digraph
+
+# Eğitim ve test veri setlerini yükleyin
+data_train = pd.read_csv('diabetes.csv')  # Normal veri seti
+data_test = pd.read_csv('cleaned_synthetic_diabetes_data.csv')  # Güncellenmiş (temizlenmiş) veri seti
+
+# LiNGAM modeli oluştur ve eğitim veri setiyle eğit
+model = DirectLiNGAM()
+model.fit(data_train)
+causal_matrix = model.adjacency_matrix_
+
+# Minimum ağırlık eşik değeri
+threshold = 0.2
+
+# Nedensel bağlantıları ve ağırlıkları tutacak liste
+causal_edges = []
+columns = data_train.columns
+
+# Nedensel bağları çıkarma
+for i in range(len(columns)):
+    for j in range(len(columns)):
+        weight = causal_matrix[i, j]
+        if abs(weight) > threshold:  # Eşik değerine göre filtreleme
+            causal_edges.append((columns[i], columns[j], weight))
+
+# Çıkarılan nedensel bağları yazdır
+print("Nedensel Bağlar ve Ağırlık Değerleri:")
+for source, target, weight in causal_edges:
+    print(f"{source} --> {target}: {weight:.2f}")
+
+# Nedensel ağın görselini oluşturma
+causal_graph = Digraph(format='png')
+for source, target, weight in causal_edges:
+    causal_graph.edge(source, target, label=f"{weight:.2f}")
+
+# Görseli kaydetme
+causal_graph.render('causal_graph')
+print("Nedensel ağ görseli 'causal_graph.png' olarak kaydedildi.")
+
+# LiNGAM'den elde edilen ağırlıkları özellik olarak ekleme (Eğitim ve Test verisi için)
+for source, target, weight in causal_edges:
+    if target == "Outcome":
+        data_train[f'CausalWeight_{source}_{target}'] = weight
+        data_test[f'CausalWeight_{source}_{target}'] = weight  # Test veri setine de ekleniyor
+
+# Eğitim verisi (X_train ve y_train) ayarlama
+X_train = data_train.drop(columns=['Outcome'])
+y_train = data_train['Outcome']
+
+# Test verisini (X_test ve y_test) ayarlama
+X_test = data_test.drop(columns=['Outcome'])
+y_test = data_test['Outcome']
+
+# Veriyi ölçeklendirme
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Lojistik regresyon modeli oluşturma ve eğitme
+log_reg = LogisticRegression(max_iter=500, solver='lbfgs')
+log_reg.fit(X_train_scaled, y_train)
+
+# Test verisinde tahmin yapma
+y_pred = log_reg.predict(X_test_scaled)
+
+# Doğruluk oranını hesaplama
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Lojistik Regresyon Doğruluk Oranı: {accuracy:.2%}")
+
+--------------------------------------------------------------------------------
+
+Çıktı
+
+Nedensel Bağlar ve Ağırlık Değerleri:
+Pregnancies --> Outcome: 1.57
+Glucose --> SkinThickness: -0.28
+Glucose --> BMI: 0.32
+Glucose --> Age: 0.42
+Glucose --> Outcome: 24.82
+BloodPressure --> BMI: 0.67
+BloodPressure --> Age: 0.38
+SkinThickness --> BMI: 0.68
+SkinThickness --> DiabetesPedigreeFunction: 6.54
+SkinThickness --> Age: -0.22
+Insulin --> SkinThickness: 2.98
+Insulin --> DiabetesPedigreeFunction: 32.91
+Insulin --> Outcome: 20.11
+BMI --> DiabetesPedigreeFunction: 2.20
+BMI --> Outcome: 4.57
+Age --> Pregnancies: 1.80
+Age --> Outcome: 3.05
+Nedensel ağ görseli 'causal_graph.png' olarak kaydedildi.
+Lojistik Regresyon Doğruluk Oranı: 79.09%
